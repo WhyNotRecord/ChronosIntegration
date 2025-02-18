@@ -68,6 +68,13 @@ if __name__ == '__main__':
 
   # predictions = predictor.predict(train_data, model="ChronosFineTuned[bolt_small]")
   predictions = predictor.predict(train_data)
+  # Удаляем item_id из индекса, если он там есть
+  if 'item_id' in predictions.index.names:
+    predictions = predictions.reset_index(level='item_id')  # Переносим item_id в колонки
+  predictions.drop(columns=['item_id'], inplace=True)  # Удаляем столбец item_id
+
+  # Преобразование индекса в Unix-время в миллисекундах (long)
+  predictions.index = predictions.index.astype("int64") // 10 ** 6
 
   # Сохранение предсказаний в CSV
   try:
