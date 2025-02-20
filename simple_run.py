@@ -78,6 +78,8 @@ if __name__ == '__main__':
 
   # Сохранение предсказаний в CSV
   try:
+      # Создаем каталоги по пути выходного файла, если они отсутствуют
+      os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
       predictions.to_csv(args.output_file)
       print(f"Predictions exported to file: {args.output_file}")
   except Exception as e:
