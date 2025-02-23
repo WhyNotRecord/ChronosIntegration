@@ -15,6 +15,8 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='1. Time series forecasting with AutoGluon Chronos')
   parser.add_argument('input_file', type=str, help='Path to the file with data in CSV format')
   parser.add_argument('output_file', type=str, help='Path to the file for saving predictions in CSV format')
+  parser.add_argument('-lookback', type=int, default=0, required=False,
+                      help='Length of the lookback period for prediction')
   args = parser.parse_args()
   # Загрузка данных
   try:
@@ -44,30 +46,38 @@ if __name__ == '__main__':
   prediction_length = 5
 
   # train_data, test_data = data.train_test_split(prediction_length)
-  train_data = data
+  train_data = data.tail(1000)
   models_dir = "./ag_models"  # Или любой другой путь
   os.makedirs(models_dir, exist_ok=True)  # Создаем каталог, если он не существует
   model_name = os.path.basename(args.input_file).split('_')[0]
   model_path = os.path.join(models_dir, model_name)  # Уникальное имя для каждой модели
 
-  predictor = TimeSeriesPredictor(target='close', prediction_length=prediction_length, path=model_path, freq='D').fit(
-      train_data=train_data,
-      hyperparameters={
-          "Chronos": [
-              {"model_path": "bolt_small", "ag_args": {"name_suffix": "ZeroShot"}},
-              # {"model_path": "bolt_small", "fine_tune": True, "ag_args": {"name_suffix": "FineTuned"}},
-          ]
-      },
-      # features=['open', 'volume'],
-      # hyperparameters={"Chronos": {"fine_tune": True, "fine_tune_lr": 1e-4, "fine_tune_steps": 2000}}
-      time_limit=60,  # time limit in seconds (for fine-tuning?)
-      enable_ensemble=False,
+  print(f"Calling fit on sequence with length {train_data.shape[0]}")
+  predictor = TimeSeriesPredictor(target='close', prediction_length=prediction_length, path=model_path,
+                                  freq='D', quantile_levels=[0.25, 0.5, 0.75]).fit(
+    train_data=train_data,
+    presets="high_quality",
+    excluded_model_types=["SeasonalNaive", "DirectTabular", "TemporalFusionTransformer", # medium_quality
+                          "NPTS"], # high_quality
+    # hyperparameters={
+    #     "Chronos": [
+    #         {"model_path": "bolt_small", "ag_args": {"name_suffix": "ZeroShot"}},
+    #         # {"model_path": "bolt_small", "fine_tune": True, "ag_args": {"name_suffix": "FineTuned"}},
+    #     ]
+    # },
+    # features=['open', 'volume'],
+    # hyperparameters={"Chronos": {"fine_tune": True, "fine_tune_lr": 1e-3, "fine_tune_steps": 10}}
+    num_val_windows=32, val_step_size=2,
+    time_limit=900,  # time limit in seconds (for tuning)
+    enable_ensemble=True,
   )
 
   print("Starting inference")
 
-  # predictions = predictor.predict(train_data, model="ChronosFineTuned[bolt_small]")
-  predictions = predictor.predict(train_data)
+  predict_data = train_data if args.lookback == 0 else train_data.tail(args.lookback)
+  print(f"Calling predict on sequence with length {predict_data.shape[0]}")
+  # predictions = predictor.predict(predict_data, model="ChronosFineTuned[bolt_small]")
+  predictions = predictor.predict(predict_data)
   # Удаляем item_id из индекса, если он там есть
   if 'item_id' in predictions.index.names:
     predictions = predictions.reset_index(level='item_id')  # Переносим item_id в колонки
@@ -79,11 +89,13 @@ if __name__ == '__main__':
   # Сохранение предсказаний в CSV
   try:
       # Создаем каталоги по пути выходного файла, если они отсутствуют
-      os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
+      dirname = os.path.dirname(args.output_file)
+      if dirname:
+        os.makedirs(dirname, exist_ok=True)
       predictions.to_csv(args.output_file)
       print(f"Predictions exported to file: {args.output_file}")
   except Exception as e:
-      print(f"Error exporting predictions to file: {e}")
+      print(f"Error exporting predictions to file {args.output_file}: {e}")
       exit(1)
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
