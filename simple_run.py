@@ -46,7 +46,7 @@ if __name__ == '__main__':
   prediction_length = 5
 
   # train_data, test_data = data.train_test_split(prediction_length)
-  train_data = data.tail(1000)
+  train_data = data.tail(2000)
   models_dir = "./ag_models"  # Или любой другой путь
   os.makedirs(models_dir, exist_ok=True)  # Создаем каталог, если он не существует
   model_name = os.path.basename(args.input_file).split('_')[0]
@@ -58,7 +58,7 @@ if __name__ == '__main__':
     train_data=train_data,
     presets="high_quality",
     excluded_model_types=["SeasonalNaive", "DirectTabular", "TemporalFusionTransformer", # medium_quality
-                          "NPTS"], # high_quality
+                          "NPTS", "TiDE"], # high_quality
     # hyperparameters={
     #     "Chronos": [
     #         {"model_path": "bolt_small", "ag_args": {"name_suffix": "ZeroShot"}},
@@ -67,8 +67,8 @@ if __name__ == '__main__':
     # },
     # features=['open', 'volume'],
     # hyperparameters={"Chronos": {"fine_tune": True, "fine_tune_lr": 1e-3, "fine_tune_steps": 10}}
-    num_val_windows=32, val_step_size=2,
-    time_limit=900,  # time limit in seconds (for tuning)
+    num_val_windows=64, val_step_size=2,
+    time_limit=3600,  # time limit in seconds (for tuning)
     enable_ensemble=True,
   )
 
