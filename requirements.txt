@@ -1,2 +1,3 @@
-pandas~=2.2.3
 autogluon~=1.2
+pandas==2.1.4
+torch==2.5.1+cu118

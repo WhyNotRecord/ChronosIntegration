@@ -1,10 +1,18 @@
+# This is a sample Python script.
 import os
+
+# Press Shift+F10 to execute it or replace it with your code.
+# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+
 from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
 import pandas as pd
 import argparse
+import datetime
+import cuda_check as cc
 
 
 # todo https://auto.gluon.ai/stable/tutorials/timeseries/forecasting-chronos.html
+# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='1. Time series forecasting with AutoGluon Chronos')
   parser.add_argument('input_file', type=str, help='Path to the file with data in CSV format')
@@ -12,6 +20,7 @@ if __name__ == '__main__':
   parser.add_argument('-lookback', type=int, default=0, required=False,
                       help='Length of the lookback period for prediction')
   args = parser.parse_args()
+
   # Загрузка данных
   try:
     df = pd.read_csv(args.input_file, skipinitialspace=True)
@@ -39,26 +48,47 @@ if __name__ == '__main__':
   print(data.tail())
   prediction_length = 3
 
-  train_data = data.tail(500)
-  models_dir = "./ag_models/one-shot"  # Или любой другой путь
+  # train_data, test_data = data.train_test_split(prediction_length)
+  train_data = data.tail(1000)
+  models_dir = "./ag_models"  # Или любой другой путь
   os.makedirs(models_dir, exist_ok=True)  # Создаем каталог, если он не существует
   model_name = os.path.basename(args.input_file).split('_')[0]
   model_path = os.path.join(models_dir, model_name)  # Уникальное имя для каждой модели
 
-  print(f"Calling fit on sequence with length {train_data.shape[0]}")
+  cc.check_available()
+
+  print(f"{datetime.datetime.now()} Calling fit on sequence with length {train_data.shape[0]}")
   predictor = TimeSeriesPredictor(target='close', prediction_length=prediction_length, freq='D', path=model_path,
-                                  eval_metric='MSE', quantile_levels=[0.25, 0.5, 0.75]).fit(
+                                  eval_metric='MAPE', quantile_levels=[0.25, 0.5, 0.75]).fit( # eval_metric='SQL'
     train_data=train_data,
+    # presets="high_quality",
+    # excluded_model_types=["SeasonalNaive", "DirectTabular", "TemporalFusionTransformer", # medium_quality
+                          # "NPTS", "TiDE"], # high_quality
+    # hyperparameters={
+    #   "Chronos": {
+    #     "epochs": 40,  # Указываем максимальное количество эпох
+    #     "patience": 10,  # Указываем patience для ранней остановки
+    #     "learning_rate": 0.001
+    #   }
+    # },
     hyperparameters={
-        "Chronos": [
-            {"model_path": "bolt_base", "ag_args": {"name_suffix": "ZeroShot"}},
-        ],
+        # "Chronos": [
+        #   {"model_path": "bolt_base", "ag_args": {"name_suffix": "ZeroShot"}},
+        #   # {"model_path": "bolt_small", "fine_tune": True, "torch_dtype": "bfloat16", # "fine_tune_lr": 1e-3,
+        #   #  "ag_args": {"name_suffix": "FineTuned"}},
+        # ],
+        # "PatchTST": {},
+        "Naive": {},
+        "DLinear": {},
+        # "DeepAR": {},
         "AutoETS": {},
+        # "AutoCES": {},
+        # "AutoARIMA": {}
     },
     # features=[],
-    num_val_windows=50, val_step_size=2,
-    time_limit=600,  # time limit in seconds (for tuning)
-    enable_ensemble=True,
+    num_val_windows=64, val_step_size=2,
+    time_limit=1800,  # time limit in seconds (for tuning)
+    enable_ensemble=False,
   )
 
   print("Starting inference")
